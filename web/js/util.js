@@ -11,7 +11,7 @@ function parseArgon2(key) {
 		version: parseArgs(parts[2]).v,
 		params: parseArgs(parts[3]),
 		salt: parts[4],
-		hash: parts[5],
+		hash: parts[5]
 	};
 
 	// *************************
@@ -19,7 +19,7 @@ function parseArgon2(key) {
 	function parseArgs(args) {
 		var ret = {};
 		for (let arg of args.split(",")) {
-			let [ ,argName, argVal ] = arg.match(/^([^=]*?)=(.*?)$/);
+			let [, argName, argVal] = arg.match(/^([^=]*?)=(.*?)$/);
 			if (!Number.isNaN(Number(argVal))) {
 				argVal = Number(argVal);
 			}

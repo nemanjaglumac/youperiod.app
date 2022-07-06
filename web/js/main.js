@@ -9,8 +9,11 @@ var profileLabelEl;
 var authWorker;
 var tmpDataBackup;
 
-document.addEventListener("DOMContentLoaded",() => main().catch(console.log),false);
-
+document.addEventListener(
+	"DOMContentLoaded",
+	() => main().catch(console.log),
+	false
+);
 
 // ****************************
 
@@ -22,18 +25,24 @@ async function main() {
 	profileLabelEl = document.getElementById("profile-label");
 
 	buttonEventHandlers: {
-		let createAnotherProfileBtn = document.getElementById("create-another-profile-btn");
+		let createAnotherProfileBtn = document.getElementById(
+			"create-another-profile-btn"
+		);
 		let logoutBtn = document.getElementById("logout-btn");
-		createAnotherProfileBtn.addEventListener("click",switchToRegisterMode,false);
-		logoutBtn.addEventListener("click",onLogout,false);
+		createAnotherProfileBtn.addEventListener(
+			"click",
+			switchToRegisterMode,
+			false
+		);
+		logoutBtn.addEventListener("click", onLogout, false);
 
-		createProfileFormEl.addEventListener("submit",onCreateProfile,false);
-		loginFormEl.addEventListener("submit",onLogin,false);
-		savedDataFormEl.addEventListener("submit",onSaveData,false);
+		createProfileFormEl.addEventListener("submit", onCreateProfile, false);
+		loginFormEl.addEventListener("submit", onLogin, false);
+		savedDataFormEl.addEventListener("submit", onSaveData, false);
 	}
 
 	authWorker = new Worker("/js/auth-worker.js");
-	authWorker.addEventListener("message",onAuthMessage,false);
+	authWorker.addEventListener("message", onAuthMessage, false);
 
 	loadProfiles: {
 		let profiles = await getProfiles();
@@ -43,8 +52,7 @@ async function main() {
 	// no registered login(s) yet?
 	if (profileNameSelectorEl.options.length == 0) {
 		createProfileFormEl.classList.remove("hidden");
-	}
-	else {
+	} else {
 		let accountID = sessionStorage.getItem("current-account-id");
 		let keyText = sessionStorage.getItem("current-key-text");
 
@@ -52,8 +60,7 @@ async function main() {
 		if (accountID && keyText) {
 			await populateSavedData();
 			savedDataFormEl.classList.remove("hidden");
-		}
-		else {
+		} else {
 			loginFormEl.classList.remove("hidden");
 		}
 	}
@@ -80,37 +87,34 @@ async function getAccounts() {
 	return accounts || {};
 }
 
-async function addProfileAccount(profileName,accountID) {
-	var [ profiles, accounts, ] = await Promise.all([
+async function addProfileAccount(profileName, accountID) {
+	var [profiles, accounts] = await Promise.all([
 		getProfiles(),
-		getAccounts(),
+		getAccounts()
 	]);
 
 	if (!(profileName in profiles)) {
 		profiles[profileName] = accountID;
-		accounts[accountID] = { profileName, };
+		accounts[accountID] = { profileName };
 		try {
 			await Promise.all([
-				idbKeyval.set("profiles",profiles),
-				idbKeyval.set("accounts",accounts),
+				idbKeyval.set("profiles", profiles),
+				idbKeyval.set("accounts", accounts)
 			]);
 			populateProfileSelector(profiles);
 			return true;
-		}
-		catch (err) {}
+		} catch (err) {}
 	}
 	return false;
 }
 
 function populateProfileSelector(profiles) {
 	profileNameSelectorEl.options.length = 0;
-	let profileList = Object.entries(profiles).sort((p1,p2) => (
-		(p1[0] < p2[0]) ? -1 :
-		(p1[0] > p2[0]) ? 1 :
-		0
-	));
+	let profileList = Object.entries(profiles).sort((p1, p2) =>
+		p1[0] < p2[0] ? -1 : p1[0] > p2[0] ? 1 : 0
+	);
 
-	for (let [ profileName, accountID, ] of profileList) {
+	for (let [profileName, accountID] of profileList) {
 		let optEl = document.createElement("option");
 		optEl.value = accountID;
 		optEl.innerText = profileName;
@@ -129,7 +133,7 @@ async function populateSavedData() {
 	setSavedData: {
 		let textareaEl = savedDataFormEl.querySelector("#saved-text");
 		let data = await DataManager.getData();
-		textareaEl.value = (data != null) ? data : "";
+		textareaEl.value = data != null ? data : "";
 	}
 }
 
@@ -138,15 +142,24 @@ async function onCreateProfile(evt) {
 
 	var submitBtn = createProfileFormEl.querySelector("button[type=submit]");
 
-	if (!(
-		createProfileFormEl.classList.contains("hidden") ||
-		submitBtn.disabled
-	)) {
-		let profileNameEl = createProfileFormEl.querySelector("#register-profile-name");
-		let passphraseEl = createProfileFormEl.querySelector("#register-password");
-		let confirmPassphraseEl = createProfileFormEl.querySelector("#register-password-confirm");
+	if (
+		!(
+			createProfileFormEl.classList.contains("hidden") ||
+			submitBtn.disabled
+		)
+	) {
+		let profileNameEl = createProfileFormEl.querySelector(
+			"#register-profile-name"
+		);
+		let passphraseEl =
+			createProfileFormEl.querySelector("#register-password");
+		let confirmPassphraseEl = createProfileFormEl.querySelector(
+			"#register-password-confirm"
+		);
 		if (profileNameEl.value.length < 2) {
-			alert("Please enter a profile name/description at least 2 letters long.");
+			alert(
+				"Please enter a profile name/description at least 2 letters long."
+			);
 			return false;
 		}
 		if (passphraseEl.value.length < 12) {
@@ -154,12 +167,14 @@ async function onCreateProfile(evt) {
 			return false;
 		}
 		if (passphraseEl.value !== confirmPassphraseEl.value) {
-			alert("Please make sure you enter the exact same passphrase twice.");
+			alert(
+				"Please make sure you enter the exact same passphrase twice."
+			);
 			return false;
 		}
 
 		let accountID = self.crypto.randomUUID();
-		if (!(await addProfileAccount(profileNameEl.value,accountID))) {
+		if (!(await addProfileAccount(profileNameEl.value, accountID))) {
 			alert("Could not add a profile with the given name/description.");
 			return false;
 		}
@@ -168,8 +183,8 @@ async function onCreateProfile(evt) {
 		authWorker.postMessage({
 			createAuth: {
 				password: passphraseEl.value.trim(),
-				accountID,
-			},
+				accountID
+			}
 		});
 	}
 }
@@ -179,18 +194,15 @@ async function onLogin(evt) {
 
 	var submitBtn = loginFormEl.querySelector("button[type=submit]");
 
-	if (!(
-		loginFormEl.classList.contains("hidden") ||
-		submitBtn.disabled
-	)) {
+	if (!(loginFormEl.classList.contains("hidden") || submitBtn.disabled)) {
 		let accountID = profileNameSelectorEl.value;
 		let passphraseEl = loginFormEl.querySelector("#login-password");
 		submitBtn.disabled = true;
 		authWorker.postMessage({
 			checkAuth: {
 				password: passphraseEl.value.trim(),
-				accountID,
-			},
+				accountID
+			}
 		});
 	}
 }
@@ -210,10 +222,7 @@ async function onSaveData(evt) {
 
 	var submitBtn = savedDataFormEl.querySelector("button[type=submit]");
 
-	if (!(
-		savedDataFormEl.classList.contains("hidden") ||
-		submitBtn.disabled
-	)) {
+	if (!(savedDataFormEl.classList.contains("hidden") || submitBtn.disabled)) {
 		submitBtn.disabled = true;
 		let textareaEl = savedDataFormEl.querySelector("#saved-text");
 		try {
@@ -221,8 +230,7 @@ async function onSaveData(evt) {
 			if (!res) {
 				console.log("Saving data failed. Please try again.");
 			}
-		}
-		catch (err) {
+		} catch (err) {
 			console.log(err);
 		}
 		submitBtn.disabled = false;
@@ -250,7 +258,7 @@ async function onAuthMessage({ data }) {
 			// decrypt/extract current data
 			tmpDataBackup = await DataManager.getData(
 				data.accountID,
-				data.keyText,
+				data.keyText
 			);
 
 			// trigger regeneration of new auth credentials
@@ -258,8 +266,8 @@ async function onAuthMessage({ data }) {
 				createAuth: {
 					password: data.password,
 					accountID: data.accountID,
-					regenerate: true,
-				},
+					regenerate: true
+				}
 			});
 
 			return;
@@ -273,31 +281,31 @@ async function onAuthMessage({ data }) {
 					tmpDataBackup,
 					data.accountID,
 					data.keyText,
-					/*upgrade=*/true
+					/*upgrade=*/ true
 				);
 				if (!res) {
 					throw "Saving data (during credentials upgrade) failed. Please try again.";
 				}
 				tmpDataBackup = null;
-			}
-			catch (err) {
+			} catch (err) {
 				console.log(err);
-				let submitBtn = loginFormEl.querySelector("button[type=submit]");
+				let submitBtn = loginFormEl.querySelector(
+					"button[type=submit]"
+				);
 				submitBtn.disabled = false;
 				return;
 			}
 		}
 
 		// need to save credentials into session?
-		sessionStorage.setItem("current-account-id",data.accountID);
-		sessionStorage.setItem("current-key-text",data.keyText);
+		sessionStorage.setItem("current-account-id", data.accountID);
+		sessionStorage.setItem("current-key-text", data.keyText);
 
 		hideRegistration();
 		hideLogin();
 		await populateSavedData();
 		savedDataFormEl.classList.remove("hidden");
-	}
-	else if (data.error) {
+	} else if (data.error) {
 		let submitBtns = document.querySelectorAll("form button[type=submit]");
 		for (let btn of submitBtns) {
 			btn.disabled = false;

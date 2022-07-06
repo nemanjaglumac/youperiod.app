@@ -12,31 +12,31 @@ const argonDefaultOptions = {
 	parallelism: 1,
 	memorySize: 2048,
 	hashLength: 32,
-	outputType: "encoded",
+	outputType: "encoded"
 };
 
-self.addEventListener("message",onMessage,false);
-
+self.addEventListener("message", onMessage, false);
 
 // ****************************
 
 async function onMessage({ data }) {
 	if (data.createAuth) {
 		await onCreateAuth(data.createAuth);
-	}
-	else if (data.checkAuth) {
+	} else if (data.checkAuth) {
 		await onCheckAuth(data.checkAuth);
 	}
 }
 
 function getKeyParams(account) {
 	var keyInfo = account.keyInfo;
-	return keyInfo ? {
-		salt: keyInfo.salt,
-		iterations: keyInfo.params.t,
-		parallelism: keyInfo.params.p,
-		memorySize: keyInfo.params.m,
-	} : undefined;
+	return keyInfo
+		? {
+				salt: keyInfo.salt,
+				iterations: keyInfo.params.t,
+				parallelism: keyInfo.params.p,
+				memorySize: keyInfo.params.m
+		  }
+		: undefined;
 }
 
 async function getAccount(accountID) {
@@ -44,100 +44,103 @@ async function getAccount(accountID) {
 	return accounts[accountID] || {};
 }
 
-async function setAccount(accountID,accountInfo) {
+async function setAccount(accountID, accountInfo) {
 	var accounts = await idbKeyval.get("accounts");
 	accounts[accountID] = accountInfo;
-	await idbKeyval.set("accounts",accounts);
+	await idbKeyval.set("accounts", accounts);
 }
 
-async function createLoginChallenge(account,password) {
+async function createLoginChallenge(account, password) {
 	var keyParams = getKeyParams(account);
-	var salt = (new TextEncoder()).encode(password);
-	var key = await hashwasm.argon2id(Object.assign(
-		{},
-		argonDefaultOptions,
-		keyParams || {},	// override options
-		{
-			password: loginChallenge,
-			salt,
-			outputType: "hex",
-		}
-	));
+	var salt = new TextEncoder().encode(password);
+	var key = await hashwasm.argon2id(
+		Object.assign(
+			{},
+			argonDefaultOptions,
+			keyParams || {}, // override options
+			{
+				password: loginChallenge,
+				salt,
+				outputType: "hex"
+			}
+		)
+	);
 	return key;
 }
 
-async function createEncryptionKey(account,password) {
+async function createEncryptionKey(account, password) {
 	var keyParams = getKeyParams(account);
-	var salt = (
-		(keyParams && keyParams.salt) ?
-			new Uint8Array(b64AB.decode(keyParams.salt)) :
-			self.crypto.getRandomValues(new Uint8Array(32))
+	var salt =
+		keyParams && keyParams.salt
+			? new Uint8Array(b64AB.decode(keyParams.salt))
+			: self.crypto.getRandomValues(new Uint8Array(32));
+	var key = await hashwasm.argon2id(
+		Object.assign(
+			{},
+			argonDefaultOptions,
+			keyParams || {}, // override options
+			{
+				password: loginChallenge,
+				salt
+			}
+		)
 	);
-	var key = await hashwasm.argon2id(Object.assign(
-		{},
-		argonDefaultOptions,
-		keyParams || {},	// override options
-		{
-			password: loginChallenge,
-			salt,
-		}
-	));
 	return parseArgon2(key);
 }
 
-async function onCreateAuth({ password, accountID, regenerate = false, }) {
+async function onCreateAuth({ password, accountID, regenerate = false }) {
 	try {
 		let account = await getAccount(accountID);
 
 		// save old auth credentials in case we're regenerating
-		let {
-			loginChallenge: oldLoginChallenge,
-			keyInfo: oldKeyInfo,
-		} = account;
+		let { loginChallenge: oldLoginChallenge, keyInfo: oldKeyInfo } =
+			account;
 		if (regenerate) {
 			account.loginChallenge = null;
 			account.keyInfo = null;
 		}
 
 		// generate new auth credentials
-		let [ loginChallengeHash, keyInfo, ] = await Promise.all([
-			createLoginChallenge(account,password),
-			createEncryptionKey(account,password),
+		let [loginChallengeHash, keyInfo] = await Promise.all([
+			createLoginChallenge(account, password),
+			createEncryptionKey(account, password)
 		]);
 
 		// store new auth credentials in account
-		await setAccount(accountID,Object.assign(account,{
-			loginChallenge: loginChallengeHash,
-			keyInfo: {
-				algorithm: keyInfo.algorithm,
-				params: keyInfo.params,
-				salt: keyInfo.salt,
-				version: keyInfo.version,
-			},
+		await setAccount(
+			accountID,
+			Object.assign(account, {
+				loginChallenge: loginChallengeHash,
+				keyInfo: {
+					algorithm: keyInfo.algorithm,
+					params: keyInfo.params,
+					salt: keyInfo.salt,
+					version: keyInfo.version
+				},
 
-			// preserve old credentials temporarily just in case
-			// upgrade of data encryption doesn't complete
-			...(regenerate ? { oldLoginChallenge, oldKeyInfo, } : {}),
-		}));
+				// preserve old credentials temporarily just in case
+				// upgrade of data encryption doesn't complete
+				...(regenerate ? { oldLoginChallenge, oldKeyInfo } : {})
+			})
+		);
 
 		// notify page of new credentials
 		self.postMessage({
 			login: true,
 			keyText: keyInfo.hash,
 			accountID,
-			...(regenerate ? { authRegenerated: true, } : {})
+			...(regenerate ? { authRegenerated: true } : {})
 		});
-	}
-	catch (err) {
+	} catch (err) {
 		console.log(err);
 
 		self.postMessage({
-			error: "Creating a local profile failed. Please try again.",
+			error: "Creating a local profile failed. Please try again."
 		});
 	}
 }
 
-async function onCheckAuth({ password, accountID, }) {
+async function onCheckAuth({ password, accountID }) {
 	try {
 		let account = await getAccount(accountID);
 
@@ -150,15 +153,12 @@ async function onCheckAuth({ password, accountID, }) {
 			account.keyInfo = account.oldKeyInfo;
 			delete account.oldLoginChallenge;
 			delete account.oldKeyInfo;
-			await setAccount(accountID,account);
+			await setAccount(accountID, account);
 		}
 
-		let [
-			loginAttemptHash,
-			keyInfo,
-		] = await Promise.all([
-			createLoginChallenge(account,password),
-			createEncryptionKey(account,password),
+		let [loginAttemptHash, keyInfo] = await Promise.all([
+			createLoginChallenge(account, password),
+			createEncryptionKey(account, password)
 		]);
 
 		// did the login match?
@@ -176,25 +176,23 @@ async function onCheckAuth({ password, accountID, }) {
 					keyText: keyInfo.hash,
 					accountID,
 					password,
-					upgradePending: true,
+					upgradePending: true
 				});
-			}
-			else {
+			} else {
 				self.postMessage({
 					login: true,
 					keyText: keyInfo.hash,
-					accountID,
+					accountID
 				});
 			}
 
 			return;
 		}
-	}
-	catch (err) {
+	} catch (err) {
 		console.log(err);
 	}
 
 	self.postMessage({
-		error: "Login failed. Please try again.",
+		error: "Login failed. Please try again."
 	});
 }

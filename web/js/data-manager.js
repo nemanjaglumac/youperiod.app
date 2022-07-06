@@ -1,16 +1,15 @@
 import * as idbKeyval from "/js/external/idb-keyval.js";
 
-export { getData, saveData, };
+export { getData, saveData };
 
 const b64AB = window["base64-arraybuffer"];
 const aesDefaultOptions = {
-	name: "AES-GCM",
+	name: "AES-GCM"
 };
-
 
 // ****************************
 
-async function getData(accountID,keyText) {
+async function getData(accountID, keyText) {
 	try {
 		accountID = accountID || sessionStorage.getItem("current-account-id");
 		keyText = keyText || sessionStorage.getItem("current-key-text");
@@ -20,19 +19,28 @@ async function getData(accountID,keyText) {
 		if (account.data && account.dataIV) {
 			let iv = b64AB.decode(account.dataIV);
 			let keyBuffer = b64AB.decode(keyText);
-			let key = await crypto.subtle.importKey("raw",keyBuffer,"AES-GCM",false,[ "decrypt", ]);
+			let key = await crypto.subtle.importKey(
+				"raw",
+				keyBuffer,
+				"AES-GCM",
+				false,
+				["decrypt"]
+			);
 			let dataBuffer = b64AB.decode(account.data);
-			let aesOptions = Object.assign({},aesDefaultOptions,{ iv, });
-			dataBuffer = await crypto.subtle.decrypt(aesOptions,key,dataBuffer);
-			return (new TextDecoder()).decode(dataBuffer);
+			let aesOptions = Object.assign({}, aesDefaultOptions, { iv });
+			dataBuffer = await crypto.subtle.decrypt(
+				aesOptions,
+				key,
+				dataBuffer
+			);
+			return new TextDecoder().decode(dataBuffer);
 		}
-	}
-	catch (err) {
+	} catch (err) {
 		console.log(err);
 	}
 }
 
-async function saveData(data,accountID,keyText,upgradeComplete = false) {
+async function saveData(data, accountID, keyText, upgradeComplete = false) {
 	try {
 		accountID = accountID || sessionStorage.getItem("current-account-id");
 		keyText = keyText || sessionStorage.getItem("current-key-text");
@@ -43,10 +51,16 @@ async function saveData(data,accountID,keyText,upgradeComplete = false) {
 		self.crypto.getRandomValues(iv);
 		account.dataIV = b64AB.encode(iv);
 		let keyBuffer = b64AB.decode(keyText);
-		let key = await crypto.subtle.importKey("raw",keyBuffer,"AES-GCM",false,[ "encrypt", ]);
-		let dataBuffer = (new TextEncoder()).encode(data);
-		let aesOptions = Object.assign({},aesDefaultOptions,{ iv, });
-		let encData = await crypto.subtle.encrypt(aesOptions,key,dataBuffer);
+		let key = await crypto.subtle.importKey(
+			"raw",
+			keyBuffer,
+			"AES-GCM",
+			false,
+			["encrypt"]
+		);
+		let dataBuffer = new TextEncoder().encode(data);
+		let aesOptions = Object.assign({}, aesDefaultOptions, { iv });
+		let encData = await crypto.subtle.encrypt(aesOptions, key, dataBuffer);
 		account.data = b64AB.encode(encData);
 
 		// discard previous auth credentials now that upgrade
@@ -56,10 +70,9 @@ async function saveData(data,accountID,keyText,upgradeComplete = false) {
 			delete account.oldKeyInfo;
 		}
 
-		await idbKeyval.set("accounts",accounts);
+		await idbKeyval.set("accounts", accounts);
 		return true;
-	}
-	catch (err) {
+	} catch (err) {
 		console.log(err);
 	}
 
